@@ -163,14 +163,8 @@ export default {
       }
     }
 
-    return json(
-      {
-        message: "AI Media Studio API",
-      },
-      404
-    );
 
-        // Kling AI - Create video generation task
+    // Kling AI - Create video generation task
     if (
       url.pathname === "/api/kling/video" &&
       request.method === "POST"
@@ -295,6 +289,15 @@ export default {
         );
       }
     }
+
+    return json(
+      {
+        message: "AI Media Studio API",
+      },
+      404
+    );
+
+        
     
   },
 };
