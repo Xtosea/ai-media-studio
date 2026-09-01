@@ -1,4 +1,6 @@
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1";
+const KLING_API_URL = "https://api-singapore.klingai.com";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -167,5 +169,132 @@ export default {
       },
       404
     );
+
+        // Kling AI - Create video generation task
+    if (
+      url.pathname === "/api/kling/video" &&
+      request.method === "POST"
+    ) {
+      try {
+        if (!env.KLING_API_KEY) {
+          return json(
+            { error: "Kling API key is not configured" },
+            500
+          );
+        }
+
+        const body = await request.json();
+
+        if (!body || typeof body !== "object") {
+          return json(
+            { error: "Request body must be JSON" },
+            400
+          );
+        }
+
+        const response = await fetch(
+          `${KLING_API_URL}/v1/videos/text2video`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${env.KLING_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.error("KLING ERROR:", data);
+
+          return json(
+            {
+              error: "Kling video generation request failed",
+              details: data,
+            },
+            response.status
+          );
+        }
+
+        return json(data);
+      } catch (error) {
+        console.error("KLING VIDEO ERROR:", error);
+
+        return json(
+          {
+            error:
+              error.message ||
+              "Kling video generation failed",
+          },
+          500
+        );
+      }
+    }
+
+    // Kling AI - Query video generation task
+    if (
+      url.pathname.startsWith("/api/kling/video/") &&
+      request.method === "GET"
+    ) {
+      try {
+        if (!env.KLING_API_KEY) {
+          return json(
+            { error: "Kling API key is not configured" },
+            500
+          );
+        }
+
+        const taskId = url.pathname.split("/").pop();
+
+        if (!taskId) {
+          return json(
+            { error: "Kling task ID is required" },
+            400
+          );
+        }
+
+        const response = await fetch(
+          `${KLING_API_URL}/v1/videos/text2video/${encodeURIComponent(
+            taskId
+          )}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${env.KLING_API_KEY}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.error("KLING TASK ERROR:", data);
+
+          return json(
+            {
+              error: "Kling task request failed",
+              details: data,
+            },
+            response.status
+          );
+        }
+
+        return json(data);
+      } catch (error) {
+        console.error("KLING TASK ERROR:", error);
+
+        return json(
+          {
+            error:
+              error.message ||
+              "Failed to query Kling task",
+          },
+          500
+        );
+      }
+    }
+    
   },
 };
