@@ -6,7 +6,8 @@ export default {
       return Response.json({
         status: "ok",
         service: "ai-media-studio-api",
-        platform: "cloudflare-workers"
+        platform: "cloudflare-workers",
+        timestamp: new Date().toISOString()
       });
     }
 
