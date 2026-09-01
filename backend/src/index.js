@@ -13,6 +13,40 @@ export default {
       });
     }
 
+        // Temporary: list ElevenLabs voices
+    if (url.pathname === "/api/voices" && request.method === "GET") {
+      try {
+        if (!env.ELEVENLABS_API_KEY) {
+          return Response.json(
+            { error: "ElevenLabs API key is not configured" },
+            { status: 500 }
+          );
+        }
+
+        const response = await fetch(
+          `${ELEVENLABS_API_URL}/voices`,
+          {
+            headers: {
+              "xi-api-key": env.ELEVENLABS_API_KEY
+            }
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          return Response.json(data, { status: response.status });
+        }
+
+        return Response.json(data);
+      } catch (error) {
+        return Response.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
+    }
+
     // Text-to-Speech
     if (url.pathname === "/api/tts" && request.method === "POST") {
       try {
