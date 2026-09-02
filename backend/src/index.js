@@ -353,6 +353,70 @@ export default {
     );
   }
 }
+
+
+    if (
+  url.pathname === "/api/magic-hour/access" &&
+  request.method === "GET"
+) {
+  try {
+    if (!env.MAGIC_HOUR_API_KEY) {
+      return json(
+        {
+          success: false,
+          error: "Magic Hour API key is not configured",
+        },
+        500
+      );
+    }
+
+    const response = await fetch(
+      "https://api.magichour.ai/v1/image-to-video",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.MAGIC_HOUR_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "AI Media Studio API Test",
+          end_seconds: 5,
+          model: "ltx-2",
+          resolution: "480p",
+          assets: {
+            image_file_path:
+              "https://example.com/test-image.jpg",
+          },
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    console.log("MAGIC HOUR TEST:", data);
+
+    return json(
+      {
+        success: response.ok,
+        status: response.status,
+        details: data,
+      },
+      response.status
+    );
+  } catch (error) {
+    console.error("MAGIC HOUR ACCESS ERROR:", error);
+
+    return json(
+      {
+        success: false,
+        error:
+          error.message ||
+          "Magic Hour API access test failed",
+      },
+      500
+    );
+  }
+    }
     
 
     return json(
