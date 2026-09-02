@@ -44,6 +44,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Upload Magic Hour secret
+        run: |
+          printf '%s' "$MAGIC_HOUR_API_KEY" | npx wrangler secret put MAGIC_HOUR_API_KEY
+        env:
+          MAGIC_HOUR_API_KEY: ${{ secrets.MAGIC_HOUR_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      
+
       - name: Deploy to Cloudflare
         run: npx wrangler deploy
         env:
