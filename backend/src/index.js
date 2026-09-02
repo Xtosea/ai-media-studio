@@ -290,6 +290,71 @@ export default {
       }
     }
 
+
+  if (
+  url.pathname === "/api/elevenlabs/video-access" &&
+  request.method === "GET"
+) {
+  try {
+    if (!env.ELEVENLABS_API_KEY) {
+      return json(
+        {
+          success: false,
+          error: "ElevenLabs API key is not configured",
+        },
+        500
+      );
+    }
+
+    const response = await fetch(
+      `${ELEVENLABS_API_URL}/flows/video?page_size=1`,
+      {
+        method: "GET",
+        headers: {
+          "xi-api-key": env.ELEVENLABS_API_KEY,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("ELEVENLABS VIDEO ACCESS ERROR:", data);
+
+      return json(
+        {
+          success: false,
+          status: response.status,
+          details: data,
+        },
+        response.status
+      );
+    }
+
+    return json({
+      success: true,
+      message: "ElevenLabs Image & Video API is accessible",
+      data,
+    });
+  } catch (error) {
+    console.error(
+      "ELEVENLABS VIDEO ACCESS ERROR:",
+      error
+    );
+
+    return json(
+      {
+        success: false,
+        error:
+          error.message ||
+          "Failed to access ElevenLabs video API",
+      },
+      500
+    );
+  }
+}
+    
+
     return json(
       {
         message: "AI Media Studio API",
