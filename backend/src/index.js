@@ -355,22 +355,163 @@ export default {
 }
 
 
-    if (
-  url.pathname === "/api/magic-hour/access" &&
-  request.method === "GET"
+    // ============================================================
+// MAGIC HOUR - IMAGE TO VIDEO
+// ============================================================
+
+if (
+  url.pathname === "/api/magic-hour/video" &&
+  request.method === "POST"
 ) {
   try {
     if (!env.MAGIC_HOUR_API_KEY) {
       return json(
         {
-          success: false,
           error: "Magic Hour API key is not configured",
         },
         500
       );
     }
 
-    const response = await fetch(
+    const formData = await request.formData();
+
+    const image = formData.get("image");
+    const prompt = formData.get("prompt") || "";
+
+    if (!image || typeof image === "string") {
+      return json(
+        {
+          error: "Image file is required",
+        },
+        400
+      );
+    }
+
+    if (!prompt.trim()) {
+      return json(
+        {
+          error: "Prompt is required",
+        },
+        400
+      );
+    }
+
+    // Get the uploaded file extension
+    const contentType =
+      image.type || "image/jpeg";
+
+    const extensionMap = {
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/heic": "heic",
+      "image/heif": "heif",
+    };
+
+    const extension =
+      extensionMap[contentType] || "jpg";
+
+    // --------------------------------------------------------
+    // STEP 1: Ask Magic Hour for an upload URL
+    // --------------------------------------------------------
+
+    const uploadResponse = await fetch(
+      "https://api.magichour.ai/v1/files/upload-urls",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.MAGIC_HOUR_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: [
+            {
+              extension,
+              type: "image",
+            },
+          ],
+        }),
+      }
+    );
+
+    const uploadData = await uploadResponse.json();
+
+    if (!uploadResponse.ok) {
+      console.error(
+        "MAGIC HOUR UPLOAD URL ERROR:",
+        uploadData
+      );
+
+      return json(
+        {
+          error:
+            "Magic Hour failed to create upload URL",
+          details: uploadData,
+        },
+        uploadResponse.status
+      );
+    }
+
+    const uploadItem =
+      uploadData.items?.[0];
+
+    if (
+      !uploadItem ||
+      !uploadItem.upload_url ||
+      !uploadItem.file_path
+    ) {
+      return json(
+        {
+          error:
+            "Magic Hour returned an invalid upload response",
+          details: uploadData,
+        },
+        502
+      );
+    }
+
+    // --------------------------------------------------------
+    // STEP 2: Upload image to Magic Hour
+    // --------------------------------------------------------
+
+    const imageBuffer = await image.arrayBuffer();
+
+    const fileUploadResponse = await fetch(
+      uploadItem.upload_url,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": contentType,
+        },
+        body: imageBuffer,
+      }
+    );
+
+    if (!fileUploadResponse.ok) {
+      const uploadText =
+        await fileUploadResponse.text();
+
+      console.error(
+        "MAGIC HOUR FILE UPLOAD ERROR:",
+        uploadText
+      );
+
+      return json(
+        {
+          error:
+            "Failed to upload image to Magic Hour",
+          details: uploadText,
+        },
+        502
+      );
+    }
+
+    // --------------------------------------------------------
+    // STEP 3: Create Image-to-Video project
+    // --------------------------------------------------------
+
+    const videoResponse = await fetch(
       "https://api.magichour.ai/v1/image-to-video",
       {
         method: "POST",
@@ -379,44 +520,159 @@ export default {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: "AI Media Studio API Test",
-          end_seconds: 5,
+          name: "AI Media Studio Image To Video",
+
           model: "ltx-2",
+
           resolution: "480p",
+
+          end_seconds: 5,
+
           assets: {
             image_file_path:
-              "https://example.com/test-image.jpg",
+              uploadItem.file_path,
+          },
+
+          style: {
+            prompt: prompt.trim(),
           },
         }),
       }
     );
 
-    const data = await response.json();
+    const videoData =
+      await videoResponse.json();
 
-    console.log("MAGIC HOUR TEST:", data);
+    if (!videoResponse.ok) {
+      console.error(
+        "MAGIC HOUR VIDEO ERROR:",
+        videoData
+      );
 
-    return json(
-      {
-        success: response.ok,
-        status: response.status,
-        details: data,
-      },
-      response.status
-    );
+      return json(
+        {
+          error:
+            "Magic Hour video generation failed",
+          details: videoData,
+        },
+        videoResponse.status
+      );
+    }
+
+    return json({
+      success: true,
+      provider: "magic-hour",
+      projectId: videoData.id,
+      creditsCharged:
+        videoData.credits_charged,
+      status: videoData.status || "queued",
+    });
   } catch (error) {
-    console.error("MAGIC HOUR ACCESS ERROR:", error);
+    console.error(
+      "MAGIC HOUR VIDEO ERROR:",
+      error
+    );
 
     return json(
       {
-        success: false,
         error:
           error.message ||
-          "Magic Hour API access test failed",
+          "Magic Hour Image-to-Video failed",
       },
       500
     );
   }
+}
+
+
+// ============================================================
+// MAGIC HOUR - CHECK VIDEO STATUS
+// ============================================================
+
+if (
+  url.pathname.startsWith(
+    "/api/magic-hour/video/"
+  ) &&
+  request.method === "GET"
+) {
+  try {
+    if (!env.MAGIC_HOUR_API_KEY) {
+      return json(
+        {
+          error:
+            "Magic Hour API key is not configured",
+        },
+        500
+      );
     }
+
+    const projectId =
+      url.pathname
+        .split("/")
+        .pop();
+
+    if (!projectId) {
+      return json(
+        {
+          error:
+            "Magic Hour project ID is required",
+        },
+        400
+      );
+    }
+
+    const response = await fetch(
+      `https://api.magichour.ai/v1/video-projects/${encodeURIComponent(
+        projectId
+      )}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${env.MAGIC_HOUR_API_KEY}`,
+        },
+      }
+    );
+
+    const data =
+      await response.json();
+
+    if (!response.ok) {
+      console.error(
+        "MAGIC HOUR STATUS ERROR:",
+        data
+      );
+
+      return json(
+        {
+          error:
+            "Magic Hour status request failed",
+          details: data,
+        },
+        response.status
+      );
+    }
+
+    return json({
+      success: true,
+      provider: "magic-hour",
+      project: data,
+    });
+  } catch (error) {
+    console.error(
+      "MAGIC HOUR STATUS ERROR:",
+      error
+    );
+
+    return json(
+      {
+        error:
+          error.message ||
+          "Failed to query Magic Hour video",
+      },
+      500
+    );
+  }
+}
     
 
     return json(
