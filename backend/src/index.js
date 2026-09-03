@@ -867,6 +867,220 @@ if (
         );
       }
     }
+
+
+        // ============================================================
+    // AI CONTENT GENERATOR
+    // ============================================================
+
+    if (
+      url.pathname === "/api/content/generate" &&
+      request.method === "POST"
+    ) {
+      try {
+        if (!env.GEMINI_API_KEY) {
+          return json(
+            {
+              error: "Gemini API key is not configured",
+            },
+            500
+          );
+        }
+
+        const body = await request.json();
+
+        const topic =
+          typeof body.topic === "string"
+            ? body.topic.trim()
+            : "";
+
+        const contentType =
+          typeof body.contentType === "string"
+            ? body.contentType.trim()
+            : "Social Media Post";
+
+        const platform =
+          typeof body.platform === "string"
+            ? body.platform.trim()
+            : "General";
+
+        const tone =
+          typeof body.tone === "string"
+            ? body.tone.trim()
+            : "Professional";
+
+        const length =
+          typeof body.length === "string"
+            ? body.length.trim()
+            : "Medium";
+
+        if (!topic) {
+          return json(
+            {
+              error: "Please provide a topic or idea.",
+            },
+            400
+          );
+        }
+
+        const prompt = `
+You are the AI Content Generator inside AI Media Studio.
+
+Create high-quality, original content based on the user's request.
+
+USER TOPIC:
+${topic}
+
+CONTENT TYPE:
+${contentType}
+
+PLATFORM:
+${platform}
+
+TONE:
+${tone}
+
+LENGTH:
+${length}
+
+IMPORTANT INSTRUCTIONS:
+- Make the content engaging and useful.
+- Match the requested platform and content type.
+- Keep the writing natural and human-sounding.
+- Do not mention that you are an AI.
+- Do not invent specific facts unless they are clearly presented as examples.
+- If the content is promotional, include a persuasive but natural call to action.
+- Generate relevant hashtags without the # symbol.
+- Make the headline concise and attention-grabbing.
+`;
+
+        const geminiResponse = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" +
+            encodeURIComponent(env.GEMINI_API_KEY),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: prompt,
+                    },
+                  ],
+                },
+              ],
+              generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: "object",
+                  properties: {
+                    headline: {
+                      type: "string",
+                    },
+                    content: {
+                      type: "string",
+                    },
+                    callToAction: {
+                      type: "string",
+                    },
+                    hashtags: {
+                      type: "array",
+                      items: {
+                        type: "string",
+                      },
+                    },
+                  },
+                  required: [
+                    "headline",
+                    "content",
+                    "callToAction",
+                    "hashtags",
+                  ],
+                },
+              },
+            }),
+          }
+        );
+
+        if (!geminiResponse.ok) {
+          const errorText =
+            await geminiResponse.text();
+
+          console.error(
+            "GEMINI CONTENT ERROR:",
+            errorText
+          );
+
+          return json(
+            {
+              error: "Gemini content generation failed",
+              details: errorText,
+            },
+            geminiResponse.status
+          );
+        }
+
+        const geminiData =
+          await geminiResponse.json();
+
+        const text =
+          geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!text) {
+          return json(
+            {
+              error:
+                "Gemini returned an empty content response.",
+            },
+            502
+          );
+        }
+
+        let content;
+
+        try {
+          content = JSON.parse(text);
+        } catch (parseError) {
+          console.error(
+            "CONTENT JSON PARSE ERROR:",
+            parseError
+          );
+
+          return json(
+            {
+              error:
+                "Gemini returned invalid structured content.",
+              raw: text,
+            },
+            502
+          );
+        }
+
+        return json({
+          success: true,
+          content,
+        });
+      } catch (error) {
+        console.error(
+          "AI CONTENT GENERATOR ERROR:",
+          error
+        );
+
+        return json(
+          {
+            error:
+              error.message ||
+              "Content generation failed",
+          },
+          500
+        );
+      }
+    }
+
     
 
     return json(
