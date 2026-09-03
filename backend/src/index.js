@@ -801,7 +801,7 @@ if (
         // --------------------------------------------------------
 
         const geminiResponse = await fetch(
-          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=" +
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse&key=" +
             encodeURIComponent(env.GEMINI_API_KEY),
           {
             method: "POST",
