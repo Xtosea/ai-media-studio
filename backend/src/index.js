@@ -673,6 +673,200 @@ if (
     );
   }
 }
+
+
+        // ============================================================
+    // GEMINI AI CHAT - STREAMING
+    // ============================================================
+
+    if (
+      url.pathname === "/api/chat" &&
+      request.method === "POST"
+    ) {
+      try {
+        if (!env.GEMINI_API_KEY) {
+          return json(
+            {
+              error: "Gemini API key is not configured",
+            },
+            500
+          );
+        }
+
+        const body = await request.json();
+
+        const message =
+          typeof body.message === "string"
+            ? body.message.trim()
+            : "";
+
+        const history =
+          Array.isArray(body.history)
+            ? body.history
+            : [];
+
+        const image = body.image;
+
+        if (!message && !image) {
+          return json(
+            {
+              error:
+                "Payload missing contents.",
+            },
+            400
+          );
+        }
+
+        // --------------------------------------------------------
+        // Build Gemini conversation contents
+        // --------------------------------------------------------
+
+        const contents = [];
+
+        for (const item of history) {
+          if (!item || typeof item !== "object") {
+            continue;
+          }
+
+          const role =
+            item.role === "model"
+              ? "model"
+              : "user";
+
+          const parts = [];
+
+          if (Array.isArray(item.parts)) {
+            for (const part of item.parts) {
+              if (typeof part === "string" && part.trim()) {
+                parts.push({
+                  text: part,
+                });
+              } else if (
+                part &&
+                typeof part === "object" &&
+                typeof part.text === "string"
+              ) {
+                parts.push({
+                  text: part.text,
+                });
+              }
+            }
+          }
+
+          if (parts.length > 0) {
+            contents.push({
+              role,
+              parts,
+            });
+          }
+        }
+
+        // --------------------------------------------------------
+        // Current user message
+        // --------------------------------------------------------
+
+        const currentParts = [];
+
+        if (message) {
+          currentParts.push({
+            text: message,
+          });
+        }
+
+        // --------------------------------------------------------
+        // Optional image
+        // --------------------------------------------------------
+
+        if (
+          image &&
+          typeof image === "object" &&
+          typeof image.base64 === "string" &&
+          typeof image.mimeType === "string"
+        ) {
+          currentParts.push({
+            inline_data: {
+              mime_type: image.mimeType,
+              data: image.base64,
+            },
+          });
+        }
+
+        contents.push({
+          role: "user",
+          parts: currentParts,
+        });
+
+        // --------------------------------------------------------
+        // Call Gemini streaming REST API
+        // --------------------------------------------------------
+
+        const geminiResponse = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=" +
+            encodeURIComponent(env.GEMINI_API_KEY),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents,
+            }),
+          }
+        );
+
+        if (!geminiResponse.ok) {
+          const errorText =
+            await geminiResponse.text();
+
+          console.error(
+            "GEMINI API ERROR:",
+            errorText
+          );
+
+          return json(
+            {
+              error:
+                "Gemini API request failed",
+              details: errorText,
+            },
+            geminiResponse.status
+          );
+        }
+
+        // --------------------------------------------------------
+        // Return Gemini SSE stream to frontend
+        // --------------------------------------------------------
+
+        return new Response(
+          geminiResponse.body,
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              "Content-Type":
+                "text/event-stream",
+              "Cache-Control":
+                "no-cache, no-transform",
+              "Connection": "keep-alive",
+            },
+          }
+        );
+      } catch (error) {
+        console.error(
+          "GEMINI CHAT ERROR:",
+          error
+        );
+
+        return json(
+          {
+            error:
+              error.message ||
+              "Gemini chat failed",
+          },
+          500
+        );
+      }
+    }
     
 
     return json(
